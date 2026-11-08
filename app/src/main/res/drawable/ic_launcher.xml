@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- rounded tile -->
+    <path android:fillColor="#1B2A3A"
+        android:pathData="M10,2h28a8,8 0,0 1,8 8v28a8,8 0,0 1,-8 8h-28a8,8 0,0 1,-8 -8v-28a8,8 0,0 1,8 -8z" />
+    <!-- moon -->
+    <path android:fillColor="#FFD54F"
+        android:pathData="M33,9a6,6 0,1 0,6 7.5a4.6,4.6 0,1 1,-6 -7.5z" />
+    <!-- back hill -->
+    <path android:fillColor="#4FC3F7"
+        android:pathData="M2,36l12,-14l9,10l5,-5l18,15v4a8,8 0,0 1,-8 8h-28a8,8 0,0 1,-8 -8z" />
+    <!-- front hill -->
+    <path android:fillColor="#0288D1"
+        android:pathData="M2,40l14,-8l12,6l8,-3l10,5v-2v0a8,8 0,0 1,-8 8h-28a8,8 0,0 1,-8 -8z" />
+</vector>

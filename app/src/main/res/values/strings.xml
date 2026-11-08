@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Photo Dream</string>
+    <string name="help_text">During the slideshow: Right / tap right = next, Left / tap left = previous, OK = pause, Back = exit.\n\nOn Google TV the screensaver list is hidden. Set Photo Dream as the screensaver once from a computer with ADB (see the README that came with the app).</string>
+</resources>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121417">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="32dp"
+        android:paddingTop="32dp"
+        android:paddingEnd="32dp"
+        android:paddingBottom="48dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="#FFFFFF"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="A screensaver and slideshow for your own photos and videos."
+            android:textColor="#A9B1BA"
+            android:textSize="16sp" />
+
+        <!-- Source -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="Where are your photos?" />
+
+        <RadioGroup
+            android:id="@+id/source_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <RadioButton
+                android:id="@+id/radio_folder"
+                style="@style/Option"
+                android:text="Pick a folder (phones, tablets, most TVs)" />
+
+            <RadioButton
+                android:id="@+id/radio_library"
+                style="@style/Option"
+                android:text="Search the media library (use if the folder picker doesn't work)" />
+        </RadioGroup>
+
+        <LinearLayout
+            android:id="@+id/folder_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/choose_folder"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Choose folder…" />
+
+            <TextView
+                android:id="@+id/folder_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="#A9B1BA"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/library_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Only show folders whose path contains (leave blank for everything):"
+                android:textColor="#A9B1BA"
+                android:textSize="15sp" />
+
+            <EditText
+                android:id="@+id/filter_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="e.g. Slideshow"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#6B737C" />
+        </LinearLayout>
+
+        <!-- Timing -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="Timing" />
+
+        <TextView
+            android:id="@+id/label_interval"
+            style="@style/Label" />
+
+        <SeekBar
+            android:id="@+id/seek_interval"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp" />
+
+        <TextView
+            android:id="@+id/label_video"
+            style="@style/Label" />
+
+        <SeekBar
+            android:id="@+id/seek_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp" />
+
+        <!-- Options -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="Options" />
+
+        <Switch android:id="@+id/switch_shuffle" style="@style/Option" android:text="Shuffle" />
+        <Switch android:id="@+id/switch_videos" style="@style/Option" android:text="Include videos" />
+        <Switch android:id="@+id/switch_mute" style="@style/Option" android:text="Mute videos" />
+        <Switch android:id="@+id/switch_zoom" style="@style/Option" android:text="Slow zoom on photos" />
+        <Switch android:id="@+id/switch_fill" style="@style/Option" android:text="Crop photos to fill the screen" />
+        <Switch android:id="@+id/switch_clock" style="@style/Option" android:text="Show clock and date" />
+        <Switch android:id="@+id/switch_location" style="@style/Option" android:text="Show where photos were taken (needs internet for place names)" />
+
+        <!-- Actions -->
+        <Button
+            android:id="@+id/start_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="▶  Start slideshow now" />
+
+        <Button
+            android:id="@+id/screensaver_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Set as screensaver…" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:lineSpacingExtra="4dp"
+            android:text="@string/help_text"
+            android:textColor="#A9B1BA"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>
