@@ -7,7 +7,13 @@ import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 
-data class MediaItem(val uri: Uri, val isVideo: Boolean, val name: String)
+/** remotePath is set for files on a network share (path inside the share, e.g. "Photos\\2024\\a.jpg"). */
+data class MediaItem(
+    val uri: Uri,
+    val isVideo: Boolean,
+    val name: String,
+    val remotePath: String? = null
+)
 
 /** Finds the photos and videos to show. Runs on a background thread. */
 object MediaScanner {
@@ -17,12 +23,14 @@ object MediaScanner {
 
     fun scan(context: Context, prefs: Prefs): List<MediaItem> {
         val tree = prefs.treeUri
-        val found = if (prefs.source == Prefs.SOURCE_FOLDER && tree != null) {
-            scanFolder(context, Uri.parse(tree), prefs.includeVideos)
-        } else {
-            scanLibrary(context, prefs.folderFilter.trim(), prefs.includeVideos)
+        val found = when {
+            prefs.source == Prefs.SOURCE_NETWORK -> NetworkSource.scan(prefs)
+            prefs.source == Prefs.SOURCE_FOLDER && tree != null ->
+                scanFolder(context, Uri.parse(tree), prefs.includeVideos)
+            else -> scanLibrary(context, prefs.folderFilter.trim(), prefs.includeVideos)
         }
-        return if (prefs.shuffle) found.shuffled() else found.sortedBy { it.name.lowercase() }
+        return if (prefs.shuffle) found.shuffled()
+        else found.sortedBy { (it.remotePath ?: it.name).lowercase() }
     }
 
     /** Walks the picked folder and all its sub-folders. */
@@ -97,7 +105,7 @@ object MediaScanner {
     }
 
     /** true = video, false = image, null = not media. */
-    private fun classify(name: String, mime: String): Boolean? {
+    internal fun classify(name: String, mime: String): Boolean? {
         if (mime.startsWith("image/")) return false
         if (mime.startsWith("video/")) return true
         val ext = name.substringAfterLast('.', "").lowercase()

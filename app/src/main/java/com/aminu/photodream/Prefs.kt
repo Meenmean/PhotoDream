@@ -13,7 +13,10 @@ class Prefs(context: Context) {
     private fun int(key: String, def: Int) = sp.getInt(key, def)
     private fun setInt(key: String, v: Int) = sp.edit().putInt(key, v).apply()
 
-    /** SOURCE_FOLDER = a folder picked with the system picker; SOURCE_LIBRARY = media library search. */
+    /**
+     * SOURCE_FOLDER = a folder picked with the system picker; SOURCE_LIBRARY = media library search;
+     * SOURCE_NETWORK = a shared folder on a PC/NAS; SOURCE_YOUTUBE = a YouTube playlist or channel.
+     */
     var source: Int
         get() = int("source", SOURCE_FOLDER)
         set(v) = setInt("source", v)
@@ -53,6 +56,31 @@ class Prefs(context: Context) {
         get() = bool("clock", true)
         set(v) = setBool("clock", v)
 
+    /** Network folder, e.g. \\MYPC\Photos\Slideshow (SOURCE_NETWORK mode). */
+    var netPath: String
+        get() = sp.getString("net_path", "") ?: ""
+        set(v) = sp.edit().putString("net_path", v).apply()
+
+    /** Network username; blank = guest. May be "DOMAIN\user" or a Microsoft account email. */
+    var netUser: String
+        get() = sp.getString("net_user", "") ?: ""
+        set(v) = sp.edit().putString("net_user", v).apply()
+
+    /** Stored privately on this device only (app-private storage). */
+    var netPassword: String
+        get() = sp.getString("net_password", "") ?: ""
+        set(v) = sp.edit().putString("net_password", v).apply()
+
+    /** YouTube playlist link, channel link or @handle (SOURCE_YOUTUBE mode). */
+    var youtubeLink: String
+        get() = sp.getString("youtube_link", "") ?: ""
+        set(v) = sp.edit().putString("youtube_link", v).apply()
+
+    /** Show the day, month and year the photo/video was taken, when the file records it. */
+    var showDate: Boolean
+        get() = bool("date", true)
+        set(v) = setBool("date", v)
+
     /** Show where each photo/video was taken, when the file contains GPS data. */
     var showLocation: Boolean
         get() = bool("location", true)
@@ -71,5 +99,7 @@ class Prefs(context: Context) {
     companion object {
         const val SOURCE_FOLDER = 0
         const val SOURCE_LIBRARY = 1
+        const val SOURCE_NETWORK = 2
+        const val SOURCE_YOUTUBE = 3
     }
 }

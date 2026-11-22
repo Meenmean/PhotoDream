@@ -4,3 +4,11 @@ app/build/
 local.properties
 .idea/
 *.iml
+
+# Signing keys - never publish these
+*.jks
+*.keystore
+keystore.properties
+# Built app files
+*.apk
+*.aab

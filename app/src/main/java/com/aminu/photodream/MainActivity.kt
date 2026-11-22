@@ -28,6 +28,13 @@ class MainActivity : Activity() {
     private lateinit var folderSection: View
     private lateinit var librarySection: View
     private lateinit var filterInput: EditText
+    private lateinit var networkSection: View
+    private lateinit var youtubeSection: View
+    private lateinit var netPath: EditText
+    private lateinit var netUser: EditText
+    private lateinit var netPassword: EditText
+    private lateinit var netStatus: TextView
+    private lateinit var youtubeLink: EditText
     private var startAfterPermission = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,16 +47,41 @@ class MainActivity : Activity() {
         librarySection = findViewById(R.id.library_section)
         filterInput = findViewById(R.id.filter_input)
         filterInput.setText(prefs.folderFilter)
+        networkSection = findViewById(R.id.network_section)
+        youtubeSection = findViewById(R.id.youtube_section)
+        netPath = findViewById(R.id.net_path)
+        netUser = findViewById(R.id.net_user)
+        netPassword = findViewById(R.id.net_password)
+        netStatus = findViewById(R.id.net_status)
+        youtubeLink = findViewById(R.id.youtube_link)
+        netPath.setText(prefs.netPath)
+        netUser.setText(prefs.netUser)
+        netPassword.setText(prefs.netPassword)
+        youtubeLink.setText(prefs.youtubeLink)
 
         val group = findViewById<RadioGroup>(R.id.source_group)
-        group.check(if (prefs.source == Prefs.SOURCE_FOLDER) R.id.radio_folder else R.id.radio_library)
+        group.check(
+            when (prefs.source) {
+                Prefs.SOURCE_LIBRARY -> R.id.radio_library
+                Prefs.SOURCE_NETWORK -> R.id.radio_network
+                Prefs.SOURCE_YOUTUBE -> R.id.radio_youtube
+                else -> R.id.radio_folder
+            }
+        )
         group.setOnCheckedChangeListener { _, id ->
-            prefs.source = if (id == R.id.radio_folder) Prefs.SOURCE_FOLDER else Prefs.SOURCE_LIBRARY
+            prefs.source = when (id) {
+                R.id.radio_library -> Prefs.SOURCE_LIBRARY
+                R.id.radio_network -> Prefs.SOURCE_NETWORK
+                R.id.radio_youtube -> Prefs.SOURCE_YOUTUBE
+                else -> Prefs.SOURCE_FOLDER
+            }
             updateSourceUi()
             if (prefs.source == Prefs.SOURCE_LIBRARY) requestMediaPermission()
         }
 
         findViewById<Button>(R.id.choose_folder).setOnClickListener { pickFolder() }
+        findViewById<Button>(R.id.net_test).setOnClickListener { testNetwork() }
+        bindSwitch(R.id.switch_date, prefs.showDate) { prefs.showDate = it }
 
         bindSwitch(R.id.switch_shuffle, prefs.shuffle) { prefs.shuffle = it }
         bindSwitch(R.id.switch_videos, prefs.includeVideos) { prefs.includeVideos = it }
@@ -72,16 +104,26 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
-        prefs.folderFilter = filterInput.text.toString().trim()
+        saveTextFields()
         super.onPause()
+    }
+
+    private fun saveTextFields() {
+        prefs.folderFilter = filterInput.text.toString().trim()
+        prefs.netPath = netPath.text.toString().trim()
+        prefs.netUser = netUser.text.toString().trim()
+        prefs.netPassword = netPassword.text.toString()
+        prefs.youtubeLink = youtubeLink.text.toString().trim()
     }
 
     // ---------- source ----------
 
     private fun updateSourceUi() {
-        val folderMode = prefs.source == Prefs.SOURCE_FOLDER
-        folderSection.visibility = if (folderMode) View.VISIBLE else View.GONE
-        librarySection.visibility = if (folderMode) View.GONE else View.VISIBLE
+        fun show(v: View, on: Boolean) { v.visibility = if (on) View.VISIBLE else View.GONE }
+        show(folderSection, prefs.source == Prefs.SOURCE_FOLDER)
+        show(librarySection, prefs.source == Prefs.SOURCE_LIBRARY)
+        show(networkSection, prefs.source == Prefs.SOURCE_NETWORK)
+        show(youtubeSection, prefs.source == Prefs.SOURCE_YOUTUBE)
         folderLabel.text = prefs.treeUri?.let { "Folder: " + prettyFolder(Uri.parse(it)) }
             ?: "No folder chosen yet"
     }
@@ -158,9 +200,17 @@ class MainActivity : Activity() {
     // ---------- actions ----------
 
     private fun startSlideshow() {
-        prefs.folderFilter = filterInput.text.toString().trim()
+        saveTextFields()
         if (prefs.source == Prefs.SOURCE_FOLDER && prefs.treeUri == null) {
             Toast.makeText(this, "Choose a folder first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (prefs.source == Prefs.SOURCE_NETWORK && NetworkSource.parse(prefs) == null) {
+            Toast.makeText(this, "Enter the shared folder, e.g. \\\\MYPC\\Photos", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (prefs.source == Prefs.SOURCE_YOUTUBE && prefs.youtubeLink.isBlank()) {
+            Toast.makeText(this, "Paste a YouTube playlist or channel link first.", Toast.LENGTH_SHORT).show()
             return
         }
         if (prefs.source == Prefs.SOURCE_LIBRARY && missingPermissions().isNotEmpty()) {
@@ -172,6 +222,19 @@ class MainActivity : Activity() {
     }
 
     private fun launchSlideshow() = startActivity(Intent(this, SlideshowActivity::class.java))
+
+    private fun testNetwork() {
+        saveTextFields()
+        if (NetworkSource.parse(prefs) == null) {
+            netStatus.text = "Enter the shared folder first, e.g. \\\\MYPC\\Photos"
+            return
+        }
+        netStatus.text = "Connecting…"
+        Thread {
+            val result = NetworkSource.test(prefs)
+            runOnUiThread { netStatus.text = result }
+        }.start()
+    }
 
     private fun openScreensaverSettings() {
         try {

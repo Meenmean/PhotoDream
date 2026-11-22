@@ -2,6 +2,7 @@ package com.aminu.photodream
 
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -13,14 +14,19 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.VideoView
+import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -31,15 +37,15 @@ private const val FADE_MS = 1500L
 /**
  * The slideshow engine. Used by both the full-screen activity and the screensaver.
  * Two ImageViews cross-fade between photos; a VideoView plays videos underneath.
+ * In YouTube mode a WebView with YouTube's own player is shown instead.
  */
 class SlideshowView(context: Context) : FrameLayout(context) {
 
     private val prefs = Prefs(context)
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val geoWorker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val locator = PhotoLocator(context)
-    private val place = TextView(context)
+    private val infoWorker: ExecutorService = Executors.newSingleThreadExecutor()
+    private val details = MediaDetails(context)
 
     private val video = VideoView(context)
     private val imageA = makeImageView()
@@ -47,11 +53,14 @@ class SlideshowView(context: Context) : FrameLayout(context) {
     private var front: ImageView = imageA
     private val message = TextView(context)
     private val clockBox = LinearLayout(context)
+    private val caption = TextView(context)
+    private var web: WebView? = null
 
     private var items: List<MediaItem> = emptyList()
     private var index = -1
     private var running = false
     private var paused = false
+    private var youtubeMode = false
     private var token = 0          // bumps on every change so stale background work is ignored
     private var failures = 0
     private var zoom: ObjectAnimator? = null
@@ -74,7 +83,7 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         addView(message, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER))
 
         buildClock()
-        buildPlaceLabel()
+        buildCaption()
     }
 
     // ---------- public controls ----------
@@ -87,7 +96,15 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         imageA.scaleType = scale
         imageB.scaleType = scale
         clockBox.visibility = if (prefs.showClock) View.VISIBLE else View.GONE
-        showMessage("Loading your photos…")
+        caption.alpha = 0f
+
+        if (prefs.source == Prefs.SOURCE_YOUTUBE) {
+            startYouTube()
+            return
+        }
+
+        val network = prefs.source == Prefs.SOURCE_NETWORK
+        showMessage(if (network) "Connecting to your network folder…" else "Loading your photos…")
 
         val t = ++token
         worker.execute {
@@ -95,7 +112,7 @@ class SlideshowView(context: Context) : FrameLayout(context) {
             val found = try {
                 MediaScanner.scan(context, prefs)
             } catch (e: Exception) {
-                error = e.message ?: e.javaClass.simpleName
+                error = if (network) NetworkSource.friendly(e) else (e.message ?: e.javaClass.simpleName)
                 emptyList()
             }
             main.post {
@@ -104,8 +121,11 @@ class SlideshowView(context: Context) : FrameLayout(context) {
                 index = -1
                 failures = 0
                 when {
-                    error != null -> showMessage("Couldn't read your photos:\n$error\n\nOpen Photo Dream and choose the folder again.")
-                    items.isEmpty() -> showMessage("No photos or videos found.\nOpen Photo Dream and choose a folder.")
+                    error != null && network ->
+                        showMessage("Couldn't reach your network folder:\n$error\n\nCheck the PC is on, then check the details in Photo Dream.")
+                    error != null ->
+                        showMessage("Couldn't read your photos:\n$error\n\nOpen Photo Dream and choose the folder again.")
+                    items.isEmpty() -> showMessage("No photos or videos found.\nOpen Photo Dream and check where your photos are.")
                     else -> { showMessage(null); next() }
                 }
             }
@@ -118,26 +138,46 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         main.removeCallbacksAndMessages(null)
         zoom?.cancel()
         stopVideo()
+        if (youtubeMode) {
+            web?.loadUrl("about:blank")
+            web?.visibility = View.GONE
+            youtubeMode = false
+        }
     }
 
     fun release() {
         stop()
         worker.shutdownNow()
-        geoWorker.shutdownNow()
+        infoWorker.shutdownNow()
         imageA.setImageDrawable(null)
         imageB.setImageDrawable(null)
+        web?.let { removeView(it); it.destroy() }
+        web = null
     }
 
     /** +1 = next item, -1 = previous item. */
     fun skip(delta: Int) {
-        if (!running || items.isEmpty()) return
+        if (!running) return
+        if (youtubeMode) {
+            if (paused) { paused = false; showMessage(null) }
+            js(if (delta < 0) "prev" else "next")
+            return
+        }
+        if (items.isEmpty()) return
         if (paused) { paused = false; showMessage(null) }
         if (delta < 0) index = (index - 2 + items.size * 2) % items.size
         next()
     }
 
     fun togglePause() {
-        if (!running || items.isEmpty()) return
+        if (!running) return
+        if (youtubeMode) {
+            paused = !paused
+            js(if (paused) "pause" else "play")
+            showMessage(if (paused) "Paused" else null)
+            return
+        }
+        if (items.isEmpty()) return
         paused = !paused
         if (paused) {
             main.removeCallbacks(advance)
@@ -150,6 +190,9 @@ class SlideshowView(context: Context) : FrameLayout(context) {
             if (video.visibility == View.VISIBLE) video.start() else main.postDelayed(advance, intervalMs)
         }
     }
+
+    /** In YouTube mode, let taps reach the activity (next/previous) instead of the web player. */
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = youtubeMode || super.onInterceptTouchEvent(ev)
 
     // ---------- slideshow loop ----------
 
@@ -170,10 +213,10 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         val w = if (width > 0) width else resources.displayMetrics.widthPixels
         val h = if (height > 0) height else resources.displayMetrics.heightPixels
         worker.execute {
-            val bmp = decode(item.uri, w, h)
+            val bmp = decode(item, w, h)
             main.post {
                 if (!running || t != token) return@post
-                if (bmp == null) onFailure() else { failures = 0; showImage(bmp); updateLocation(item) }
+                if (bmp == null) onFailure() else { failures = 0; showImage(bmp); updateCaption(item) }
             }
         }
     }
@@ -229,7 +272,7 @@ class SlideshowView(context: Context) : FrameLayout(context) {
             true
         }
         video.setVideoURI(item.uri)
-        updateLocation(item)
+        updateCaption(item)
     }
 
     private fun stopVideo() {
@@ -246,11 +289,97 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         }
     }
 
+    // ---------- YouTube ----------
+
+    private fun startYouTube() {
+        showMessage("Loading YouTube…")
+        val t = ++token
+        val link = prefs.youtubeLink
+        worker.execute {
+            val playlistId = try { YouTube.resolvePlaylistId(link) } catch (e: Exception) { null }
+            main.post {
+                if (!running || t != token) return@post
+                if (playlistId == null) {
+                    showMessage("Couldn't find that YouTube playlist or channel.\nOpen Photo Dream and check the link, or paste a playlist link instead.")
+                    return@post
+                }
+                val w = ensureWebView()
+                w.visibility = View.VISIBLE
+                youtubeMode = true
+                val origin = "https://" + context.packageName
+                w.loadDataWithBaseURL(
+                    origin,
+                    YouTube.playerHtml(playlistId, prefs.shuffle, prefs.muteVideos, origin),
+                    "text/html", "utf-8", null
+                )
+                // If nothing has started after a while, say so (no internet, empty playlist, etc.).
+                main.postDelayed({
+                    if (running && t == token && message.text.toString() == "Loading YouTube…") {
+                        showMessage("YouTube is taking a while to start.\nCheck the internet connection and that the playlist has public or unlisted videos.")
+                    }
+                }, 30_000)
+            }
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun ensureWebView(): WebView {
+        web?.let { return it }
+        val w = WebView(context)
+        w.settings.javaScriptEnabled = true
+        w.settings.domStorageEnabled = true
+        w.settings.mediaPlaybackRequiresUserGesture = false
+        w.setBackgroundColor(Color.BLACK)
+        w.isFocusable = false
+        w.isFocusableInTouchMode = false
+        w.webChromeClient = WebChromeClient()
+        w.addJavascriptInterface(Bridge(), "Android")
+        // Below the message, clock and caption so they stay on top.
+        addView(w, indexOfChild(message), FrameLayout.LayoutParams(MATCH, MATCH))
+        web = w
+        return w
+    }
+
+    private fun js(cmd: String) {
+        web?.evaluateJavascript("pd('$cmd')", null)
+    }
+
+    /** Called from the YouTube page (on a background thread). */
+    private inner class Bridge {
+        @JavascriptInterface
+        fun playing() {
+            main.post { if (youtubeMode && !paused) showMessage(null) }
+        }
+
+        @JavascriptInterface
+        fun failed(code: Int) {
+            main.post {
+                if (youtubeMode) showMessage(
+                    "None of these YouTube videos would play (error $code).\n" +
+                        "Private videos, and videos whose owner has turned off embedding, can't be shown."
+                )
+            }
+        }
+    }
+
     // ---------- helpers ----------
 
-    private fun decode(uri: Uri, reqW: Int, reqH: Int): Bitmap? = try {
+    private fun decode(item: MediaItem, reqW: Int, reqH: Int): Bitmap? = try {
+        val remote = item.remotePath
+        if (remote != null) {
+            NetworkSource.readAll(remote)?.let { decodeBytes(it, reqW, reqH) }
+        } else {
+            decodeUri(item.uri, reqW, reqH)
+        }
+    } catch (e: Exception) {
+        null
+    } catch (e: OutOfMemoryError) {
+        null
+    }
+
+    private fun decodeUri(uri: Uri, reqW: Int, reqH: Int): Bitmap? {
         val resolver = context.contentResolver
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             // Handles HEIC and phone-photo rotation automatically
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
                 decoder.setTargetSampleSize(sampleSize(info.size.width, info.size.height, reqW, reqH))
@@ -264,11 +393,22 @@ class SlideshowView(context: Context) : FrameLayout(context) {
             }
             resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
         }
-    } catch (e: Exception) {
-        null
-    } catch (e: OutOfMemoryError) {
-        null
     }
+
+    private fun decodeBytes(bytes: ByteArray, reqW: Int, reqH: Int): Bitmap? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
+                decoder.setTargetSampleSize(sampleSize(info.size.width, info.size.height, reqW, reqH))
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } else {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val opts = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, reqW, reqH)
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        }
 
     /** Shrinks huge photos to roughly screen size so memory stays low. */
     private fun sampleSize(w: Int, h: Int, reqW: Int, reqH: Int): Int {
@@ -283,34 +423,37 @@ class SlideshowView(context: Context) : FrameLayout(context) {
         message.visibility = if (text == null) View.GONE else View.VISIBLE
     }
 
-    /** Fades out the old caption, then looks up and fades in this item's location (if it has one). */
-    private fun updateLocation(item: MediaItem) {
-        place.animate().cancel()
-        place.animate().alpha(0f).setDuration(400).start()
-        if (!prefs.showLocation) return
+    /** Fades out the old caption, then reads and fades in this item's date and/or place. */
+    private fun updateCaption(item: MediaItem) {
+        caption.animate().cancel()
+        caption.animate().alpha(0f).setDuration(400).start()
+        val wantDate = prefs.showDate
+        val wantPlace = prefs.showLocation
+        if (!wantDate && !wantPlace) return
         val t = token
-        geoWorker.execute {
-            val text = locator.describe(item)
+        infoWorker.execute {
+            val text = try { details.caption(item, wantDate, wantPlace) } catch (e: Exception) { null }
             main.post {
                 if (!running || t != token || text == null) return@post
-                place.text = "📍  $text"
-                place.animate().cancel()
-                place.animate().alpha(1f).setDuration(FADE_MS).start()
+                caption.text = text
+                caption.animate().cancel()
+                caption.animate().alpha(1f).setDuration(FADE_MS).start()
             }
         }
     }
 
-    private fun buildPlaceLabel() {
-        place.setTextColor(Color.WHITE)
-        place.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-        place.setShadowLayer(10f, 0f, 0f, Color.BLACK)
-        place.maxLines = 2
-        place.alpha = 0f
+    private fun buildCaption() {
+        caption.setTextColor(Color.WHITE)
+        caption.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+        caption.setShadowLayer(10f, 0f, 0f, Color.BLACK)
+        caption.setLineSpacing(dp(4).toFloat(), 1f)
+        caption.maxLines = 3
+        caption.alpha = 0f
         // Bottom-left, opposite the clock; leave room so long names don't run under it.
         val lp = FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.START)
         val m = dp(40)
         lp.setMargins(m, m, dp(260), m)
-        addView(place, lp)
+        addView(caption, lp)
     }
 
     private fun buildClock() {

@@ -2,7 +2,8 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121417">
+    android:background="#121417"
+    android:fitsSystemWindows="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -48,6 +49,16 @@
                 android:id="@+id/radio_library"
                 style="@style/Option"
                 android:text="Search the media library (use if the folder picker doesn't work)" />
+
+            <RadioButton
+                android:id="@+id/radio_network"
+                style="@style/Option"
+                android:text="Network folder on a PC or NAS (also works for Dropbox, OneDrive or Google Drive folders synced to that PC)" />
+
+            <RadioButton
+                android:id="@+id/radio_youtube"
+                style="@style/Option"
+                android:text="YouTube playlist or channel (public and unlisted videos)" />
         </RadioGroup>
 
         <LinearLayout
@@ -97,6 +108,67 @@
                 android:textColorHint="#6B737C" />
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/network_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Hint"
+                android:text="Shared folder (PC name or IP address, share name, then any sub-folder):" />
+
+            <EditText
+                android:id="@+id/net_path"
+                style="@style/Field"
+                android:hint="\\\\MYPC\\Photos\\Slideshow   or   \\\\192.168.1.20\\Photos"
+                android:inputType="textUri" />
+
+            <TextView
+                style="@style/Hint"
+                android:text="Username (for a Windows PC, usually your Microsoft account email). Leave blank for guest access:" />
+
+            <EditText
+                android:id="@+id/net_user"
+                style="@style/Field"
+                android:hint="Username"
+                android:inputType="textEmailAddress" />
+
+            <EditText
+                android:id="@+id/net_password"
+                style="@style/Field"
+                android:hint="Password"
+                android:inputType="textPassword" />
+
+            <Button
+                android:id="@+id/net_test"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Test connection" />
+
+            <TextView
+                android:id="@+id/net_status"
+                style="@style/Hint" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/youtube_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Hint"
+                android:text="Paste a playlist link, a channel link, or a channel @handle. A channel plays its public uploads; for unlisted videos, put them in a playlist and paste that playlist's link. Private videos can't be played outside YouTube. Needs internet; YouTube may show ads." />
+
+            <EditText
+                android:id="@+id/youtube_link"
+                style="@style/Field"
+                android:hint="https://www.youtube.com/playlist?list=…   or   @yourchannel"
+                android:inputType="textUri" />
+        </LinearLayout>
+
         <!-- Timing -->
         <TextView
             style="@style/SectionTitle"
@@ -133,6 +205,7 @@
         <Switch android:id="@+id/switch_zoom" style="@style/Option" android:text="Slow zoom on photos" />
         <Switch android:id="@+id/switch_fill" style="@style/Option" android:text="Crop photos to fill the screen" />
         <Switch android:id="@+id/switch_clock" style="@style/Option" android:text="Show clock and date" />
+        <Switch android:id="@+id/switch_date" style="@style/Option" android:text="Show the date each photo or video was taken" />
         <Switch android:id="@+id/switch_location" style="@style/Option" android:text="Show where photos were taken (needs internet for place names)" />
 
         <!-- Actions -->
