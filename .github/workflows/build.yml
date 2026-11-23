@@ -25,11 +25,10 @@ jobs:
           java-version: '17'
 
       - uses: android-actions/setup-android@v3
-      
-
-      - uses: gradle/actions/setup-gradle@v4
         with:
           packages: 'platform-tools'
+
+      - uses: gradle/actions/setup-gradle@v4
       - name: Build
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
