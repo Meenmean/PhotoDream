@@ -17,9 +17,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -35,10 +35,18 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
+          sed -i 's/\r$//' gradlew          # fix Windows line endings, if any
           chmod +x gradlew
           mkdir -p out
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            if ! printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null \
+               || [ ! -s "$RUNNER_TEMP/release.jks" ]; then
+              echo "::error::The KEYSTORE_BASE64 secret isn't valid key text. Re-run the PowerShell ToBase64String command on your .jks file and paste the result into that secret again."
+              exit 1
+            fi
+            for v in SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
+              if [ -z "${!v}" ]; then echo "::error::The $v secret is missing. Add it under Settings > Secrets and variables > Actions."; exit 1; fi
+            done
             export SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
             ./gradlew --no-daemon assembleRelease
             cp app/build/outputs/apk/release/app-release.apk out/app-release.apk
